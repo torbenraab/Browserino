@@ -46,8 +46,14 @@ struct PromptView: View {
         for browser in visibleBrowsers {
             if let bundle = Bundle(url: browser), isChrome(bundle) {
                 // Add Chrome profiles as separate items
-                for profile in chromeProfiles {
-                    items.append((browser, profile))
+                if chromeProfiles.isEmpty {
+                    // If no profiles, add Chrome as is
+                    items.append((browser, nil))
+                } else {
+                    // Add each Chrome profile
+                    for profile in chromeProfiles {
+                        items.append((browser, profile))
+                    }
                 }
             } else {
                 // Add regular browser
@@ -65,17 +71,20 @@ struct PromptView: View {
             let isChrome1 = isChrome(bundle1)
             let isChrome2 = isChrome(bundle2)
 
-            if isChrome1 == isChrome2 {
-                if isChrome1 {
-                    // Sort Chrome profiles by name
-                    return (item1.1?.name ?? "") < (item2.1?.name ?? "")
-                } else {
-                    // Sort other browsers by name
-                    return (bundle1.infoDictionary?["CFBundleName"] as? String ?? "") <
-                           (bundle2.infoDictionary?["CFBundleName"] as? String ?? "")
-                }
+            if isChrome1 && isChrome2 {
+                // Both are Chrome, sort by profile name
+                let name1 = item1.1?.name ?? ""
+                let name2 = item2.1?.name ?? ""
+                return name1 < name2
+            } else if isChrome1 != isChrome2 {
+                // Put Chrome items first
+                return isChrome1
+            } else {
+                // Sort other browsers by name
+                let name1 = bundle1.infoDictionary?["CFBundleName"] as? String ?? ""
+                let name2 = bundle2.infoDictionary?["CFBundleName"] as? String ?? ""
+                return name1 < name2
             }
-            return isChrome1
         }
 
         return items
@@ -112,6 +121,7 @@ struct PromptView: View {
                 bundle: bundle,
                 shortcut: shortcuts[bundle.bundleIdentifier!]
             ) {
+                selected = index  // Set selection on click
                 openUrlsInApp(app: app)
             }
             .id(index)
@@ -132,37 +142,21 @@ struct PromptView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if !isChromeBrowser || profile != nil {  // Show only for non-Chrome or Chrome with profile
                     Button(action: {
+                        selected = baseIndex + index  // Set selection on click
+
                         BrowserUtil.log("\n🖱 Button clicked:", items: [
                             "🌐 Browser: \(browser.path)",
                             "🔍 Is Chrome: \(isChromeBrowser)",
+                            "👤 Profile: \(profile?.name ?? "none")",
                             "🕶 Shift pressed: \(NSEvent.modifierFlags.contains(.shift))"
                         ])
 
-                        if isChromeBrowser {
-                            if let profile = profile {
-                                BrowserUtil.log("👤 Using Chrome profile:", items: [
-                                    "  - Name: \(profile.name)",
-                                    "  - ID: \(profile.id)",
-                                    "  - Path: \(profile.path)"
-                                ])
-
-                                BrowserUtil.openURL(
-                                    urls,
-                                    app: browser,
-                                    isIncognito: NSEvent.modifierFlags.contains(.shift),
-                                    chromeProfile: profile
-                                )
-                            } else {
-                                BrowserUtil.log("⚠️ No Chrome profile provided")
-                            }
-                        } else {
-                            BrowserUtil.log("🌐 Opening in regular browser")
-                            BrowserUtil.openURL(
-                                urls,
-                                app: browser,
-                                isIncognito: NSEvent.modifierFlags.contains(.shift)
-                            )
-                        }
+                        BrowserUtil.openURL(
+                            urls,
+                            app: browser,
+                            isIncognito: NSEvent.modifierFlags.contains(.shift),
+                            chromeProfile: profile
+                        )
                     }) {
                         HStack {
                             Image(nsImage: NSWorkspace.shared.icon(forFile: bundle.bundlePath))
@@ -247,13 +241,20 @@ struct PromptView: View {
                         } else {
                             let browserIndex = selected - appsForUrls.count
                             let (browser, profile) = visibleItems[browserIndex]
+                            let bundle = Bundle(url: browser)
+                            let isChromeBrowser = bundle != nil && isChrome(bundle!)
 
-                            BrowserUtil.log("🌐 Opening browser: \(browser.path)")
-                            if let profile = profile {
-                                BrowserUtil.log("👤 With profile:", items: [
-                                    "  - Name: \(profile.name)",
-                                    "  - ID: \(profile.id)",
-                                    "  - Path: \(profile.path)"
+                            BrowserUtil.log("🌐 Opening browser:", items: [
+                                "  - Path: \(browser.path)",
+                                "  - Is Chrome: \(isChromeBrowser)",
+                                "  - Profile: \(profile?.name ?? "none")"
+                            ])
+
+                            if isChromeBrowser && profile != nil {
+                                BrowserUtil.log("👤 Using Chrome profile:", items: [
+                                    "  - Name: \(profile!.name)",
+                                    "  - ID: \(profile!.id)",
+                                    "  - Path: \(profile!.path)"
                                 ])
                             }
 

@@ -97,19 +97,23 @@ class BrowserUtil {
             return []
         }
 
-        let chromeProfiles = profiles.map { (id, profile) in
-            ChromeProfile(
+        let chromeProfiles = profiles.compactMap { (id, profile) -> ChromeProfile? in
+            guard let name = profile["name"] as? String else { return nil }
+
+            // Use the actual profile directory name as the ID
+            return ChromeProfile(
                 id: id,
-                name: profile["name"] as? String ?? "Unknown",
+                name: name,
                 path: "\(chromePath)/\(id)"
             )
-        }
+        }.sorted { $0.name < $1.name }
 
         log("✅ Found \(chromeProfiles.count) Chrome profiles:")
         chromeProfiles.forEach { profile in
             log("", items: [
-                "  - Profile: \(profile.name) (ID: \(profile.id))",
-                "    Path: \(profile.path)"
+                "  - Profile: \(profile.name)",
+                "  - Directory: \(profile.id)",
+                "  - Path: \(profile.path)"
             ])
         }
 
@@ -141,12 +145,22 @@ class BrowserUtil {
 
         if bundle.bundleIdentifier == "com.google.Chrome" && chromeProfile != nil {
             configuration.createsNewApplicationInstance = true
-            let args = ["--profile-directory=\(chromeProfile!.id)"] + urls.map(\.absoluteString)
+            // Use --profile-directory without quotes and with the exact profile directory name
+            let profileArg = "--profile-directory=\(chromeProfile!.id)"
+            let args = ["--args"] + [profileArg] + urls.map(\.absoluteString)
             configuration.arguments = args
             log("🔧 Chrome configuration:", items: [
                 "  - New instance: true",
+                "  - Profile arg: \(profileArg)",
                 "  - Arguments: \(args)"
             ])
+
+            // For Chrome with profile, don't pass URLs directly
+            NSWorkspace.shared.open(
+                [],
+                withApplicationAt: app,
+                configuration: configuration
+            )
         } else if isIncognito, let privateArg = privateArgs[bundle.bundleIdentifier!] {
             configuration.createsNewApplicationInstance = true
             let args = [privateArg] + urls.map(\.absoluteString)
@@ -155,16 +169,22 @@ class BrowserUtil {
                 "  - New instance: true",
                 "  - Arguments: \(args)"
             ])
+
+            NSWorkspace.shared.open(
+                [],
+                withApplicationAt: app,
+                configuration: configuration
+            )
+        } else {
+            // For regular browsers, pass URLs directly without arguments
+            log("🔧 Regular browser configuration")
+            NSWorkspace.shared.open(
+                urls,
+                withApplicationAt: app,
+                configuration: configuration
+            )
         }
 
-        log("🔗 Opening URLs:")
-        urls.forEach { log("  - \($0.absoluteString)") }
-
-        NSWorkspace.shared.open(
-            isIncognito ? [] : urls,
-            withApplicationAt: app,
-            configuration: configuration
-        )
         log("✅ Open command sent to system")
     }
 }
