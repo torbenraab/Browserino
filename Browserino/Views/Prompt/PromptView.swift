@@ -13,28 +13,74 @@ struct PromptView: View {
     @AppStorage("hiddenBrowsers") private var hiddenBrowsers: [URL] = []
     @AppStorage("apps") private var apps: [App] = []
     @AppStorage("shortcuts") private var shortcuts: [String: String] = [:]
-    
+    @State private var chromeProfiles: [ChromeProfile] = []
+
     let urls: [URL]
-    
+
     @State private var opacityAnimation = 0.0
     @State private var selected = 0
     @FocusState private var focused: Bool
-    
-    var appsForUrls: [App] {
-        urls.flatMap { url in
-            return apps.filter { app in
-                url.host() == app.host
-            }
-        }
-        .filter {
-            !browsers.contains($0.app)
+
+    private func isChrome(_ bundle: Bundle) -> Bool {
+        return bundle.bundleIdentifier == "com.google.Chrome"
+    }
+
+    private func filterAppsForUrls() -> [App] {
+        guard let firstUrlHost = urls.first?.host() else { return [] }
+        return apps.filter { app in
+            app.host == firstUrlHost && !browsers.contains(app.app)
         }
     }
-    
+
+    var appsForUrls: [App] {
+        filterAppsForUrls()
+    }
+
     var visibleBrowsers: [URL] {
         browsers.filter { !hiddenBrowsers.contains($0) }
     }
-    
+
+    var visibleItems: [(URL, ChromeProfile?)] {
+        var items: [(URL, ChromeProfile?)] = []
+
+        for browser in visibleBrowsers {
+            if let bundle = Bundle(url: browser), isChrome(bundle) {
+                // Add Chrome profiles as separate items
+                for profile in chromeProfiles {
+                    items.append((browser, profile))
+                }
+            } else {
+                // Add regular browser
+                items.append((browser, nil))
+            }
+        }
+
+        // Sort items to ensure Chrome profiles are grouped together
+        items.sort { item1, item2 in
+            guard let bundle1 = Bundle(url: item1.0),
+                  let bundle2 = Bundle(url: item2.0) else {
+                return false
+            }
+
+            let isChrome1 = isChrome(bundle1)
+            let isChrome2 = isChrome(bundle2)
+
+            if isChrome1 == isChrome2 {
+                if isChrome1 {
+                    // Sort Chrome profiles by name
+                    return (item1.1?.name ?? "") < (item2.1?.name ?? "")
+                } else {
+                    // Sort other browsers by name
+                    return (bundle1.infoDictionary?["CFBundleName"] as? String ?? "") <
+                           (bundle2.infoDictionary?["CFBundleName"] as? String ?? "")
+                }
+            }
+            return isChrome1
+        }
+
+        return items
+    }
+
     func openUrlsInApp(app: App) {
         let urls = if app.schemeOverride.isEmpty {
             urls
@@ -45,67 +91,133 @@ struct PromptView: View {
                     resolvingAgainstBaseURL: true
                 )
                 url!.scheme = app.schemeOverride
-                
+
                 return url!.url!
             }
         }
-        
+
         BrowserUtil.openURL(
             urls,
             app: app.app,
             isIncognito: false
         )
     }
-    
+
+    @ViewBuilder
+    private func appItemView(app: App, index: Int) -> some View {
+        if let bundle = Bundle(url: app.app) {
+            PromptItem(
+                browser: app.app,
+                urls: urls,
+                bundle: bundle,
+                shortcut: shortcuts[bundle.bundleIdentifier!]
+            ) {
+                openUrlsInApp(app: app)
+            }
+            .id(index)
+            .buttonStyle(
+                SelectButtonStyle(
+                    selected: selected == index
+                )
+            )
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func browserItemView(browser: URL, profile: ChromeProfile?, index: Int, baseIndex: Int) -> some View {
+        if let bundle = Bundle(url: browser) {
+            let isChromeBrowser = isChrome(bundle)
+            VStack(alignment: .leading, spacing: 0) {
+                if !isChromeBrowser || profile != nil {  // Show only for non-Chrome or Chrome with profile
+                    Button(action: {
+                        BrowserUtil.log("\n🖱 Button clicked:", items: [
+                            "🌐 Browser: \(browser.path)",
+                            "🔍 Is Chrome: \(isChromeBrowser)",
+                            "🕶 Shift pressed: \(NSEvent.modifierFlags.contains(.shift))"
+                        ])
+
+                        if isChromeBrowser {
+                            if let profile = profile {
+                                BrowserUtil.log("👤 Using Chrome profile:", items: [
+                                    "  - Name: \(profile.name)",
+                                    "  - ID: \(profile.id)",
+                                    "  - Path: \(profile.path)"
+                                ])
+
+                                BrowserUtil.openURL(
+                                    urls,
+                                    app: browser,
+                                    isIncognito: NSEvent.modifierFlags.contains(.shift),
+                                    chromeProfile: profile
+                                )
+                            } else {
+                                BrowserUtil.log("⚠️ No Chrome profile provided")
+                            }
+                        } else {
+                            BrowserUtil.log("🌐 Opening in regular browser")
+                            BrowserUtil.openURL(
+                                urls,
+                                app: browser,
+                                isIncognito: NSEvent.modifierFlags.contains(.shift)
+                            )
+                        }
+                    }) {
+                        HStack {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: bundle.bundlePath))
+                                .resizable()
+                                .frame(width: 32, height: 32)
+
+                            if isChromeBrowser && profile != nil {
+                                Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(profile!.name))")
+                                    .font(.system(size: 14))
+                            } else {
+                                Text(bundle.infoDictionary!["CFBundleName"] as! String)
+                                    .font(.system(size: 14))
+                            }
+
+                            Spacer()
+
+                            if let shortcut = shortcuts[bundle.bundleIdentifier!] {
+                                Text(shortcut)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(
+                        SelectButtonStyle(
+                            selected: selected == baseIndex + index
+                        )
+                    )
+                    .id(baseIndex + index)
+                }
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
     var body: some View {
         VStack {
             ScrollViewReader { scrollViewProxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if !appsForUrls.isEmpty {
-                            ForEach(Array(appsForUrls.enumerated()), id: \.offset) { index, app in
-                                if let bundle = Bundle(url: app.app) {
-                                    PromptItem(
-                                        browser: app.app,
-                                        urls: urls,
-                                        bundle: bundle,
-                                        shortcut: shortcuts[bundle.bundleIdentifier!]
-                                    ) {
-                                        openUrlsInApp(app: app)
-                                    }
-                                    .id(index)
-                                    .buttonStyle(
-                                        SelectButtonStyle(
-                                            selected: selected == index
-                                        )
-                                    )
-                                }
-                            }
-                            
-                            Divider()
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(appsForUrls.enumerated()), id: \.offset) { index, app in
+                            appItemView(app: app, index: index)
                         }
-                        
-                        ForEach(Array(visibleBrowsers.enumerated()), id: \.offset) { index, browser in
-                            if let bundle = Bundle(url: browser) {
-                                PromptItem(
-                                    browser: browser,
-                                    urls: urls,
-                                    bundle: bundle,
-                                    shortcut: shortcuts[bundle.bundleIdentifier!]
-                                ) {
-                                    BrowserUtil.openURL(
-                                        urls,
-                                        app: browser,
-                                        isIncognito: NSEvent.modifierFlags.contains(.shift)
-                                    )
-                                }
-                                .id(appsForUrls.count + index)
-                                .buttonStyle(
-                                    SelectButtonStyle(
-                                        selected: selected == appsForUrls.count + index
-                                    )
-                                )
-                            }
+
+                        ForEach(Array(visibleItems.enumerated()), id: \.offset) { index, item in
+                            browserItemView(
+                                browser: item.0,
+                                profile: item.1,
+                                index: index,
+                                baseIndex: appsForUrls.count
+                            )
                         }
                     }
                 }
@@ -113,51 +225,69 @@ struct PromptView: View {
                 .focusEffectDisabled()
                 .focused($focused)
                 .onKeyPress { press in
+                    let totalItems = appsForUrls.count + visibleItems.count
+
                     if press.key == KeyEquivalent.upArrow {
                         selected = max(0, selected - 1)
                         scrollViewProxy.scrollTo(selected, anchor: .center)
                         return .handled
                     } else if press.key == KeyEquivalent.downArrow {
-                        selected = min(visibleBrowsers.count + appsForUrls.count - 1, selected + 1)
+                        selected = min(totalItems - 1, selected + 1)
                         scrollViewProxy.scrollTo(selected, anchor: .center)
                         return .handled
                     } else if press.key == KeyEquivalent.return {
+                        BrowserUtil.log("\n⌨️ Return key pressed:", items: [
+                            "📊 Selected index: \(selected)",
+                            "🕶 Shift pressed: \(press.modifiers.contains(.shift))"
+                        ])
+
                         if selected < appsForUrls.count {
+                            BrowserUtil.log("📱 Opening app")
                             openUrlsInApp(app: appsForUrls[selected])
                         } else {
+                            let browserIndex = selected - appsForUrls.count
+                            let (browser, profile) = visibleItems[browserIndex]
+
+                            BrowserUtil.log("🌐 Opening browser: \(browser.path)")
+                            if let profile = profile {
+                                BrowserUtil.log("👤 With profile:", items: [
+                                    "  - Name: \(profile.name)",
+                                    "  - ID: \(profile.id)",
+                                    "  - Path: \(profile.path)"
+                                ])
+                            }
+
                             BrowserUtil.openURL(
                                 urls,
-                                app: browsers[selected],
-                                isIncognito: press.modifiers.contains(.shift)
+                                app: browser,
+                                isIncognito: press.modifiers.contains(.shift),
+                                chromeProfile: profile
                             )
                         }
-                        
                         return .handled
                     }
-                    
+
                     return .ignored
                 }
                 .onAppear {
                     focused.toggle()
+                    BrowserUtil.log("\n🔄 Loading Chrome profiles...")
+                    chromeProfiles = BrowserUtil.getChromeProfiles()
+                    BrowserUtil.log("✅ Loaded \(chromeProfiles.count) Chrome profiles")
                     withAnimation(.interactiveSpring(duration: 0.3)) {
                         opacityAnimation = 1
                     }
                 }
             }
-            
+
             Divider()
-            
+
             if let host = urls.first?.host() {
-                Text(
-                    host
-                )
+                Text(host)
             }
         }
         .padding(12)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BlurredView())
         .opacity(opacityAnimation)
         .edgesIgnoringSafeArea(.all)
