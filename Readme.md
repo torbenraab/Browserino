@@ -1,5 +1,8 @@
 # Browserino
 
+I added a chrome profile feature.
+![Browserino with Chrome Porfile](images/screen.png)
+
 ![Browserino](images/browserino.png?v2)
 
 Browserino is a tiny browser selector for MacOS written in SwiftUI. Just set as default browser, assign shortcuts, and now you can choose in which application you want to open the link.
