@@ -23,6 +23,13 @@ struct PromptView: View {
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
 
+    private func shortcutKey(for browser: BrowserItem, bundleId: String) -> String {
+        if let profile = browser.profile {
+            return "\(bundleId)_\(profile.id)"
+        }
+        return bundleId
+    }
+
     private func filterAppsForUrls() -> [App] {
         guard let firstUrlHost = urls.first?.host() else { return [] }
         return apps.filter { app in
@@ -98,7 +105,7 @@ struct PromptView: View {
 
                             Spacer()
 
-                            if let shortcut = shortcuts[bundle.bundleIdentifier!] {
+                            if let shortcut = shortcuts[shortcutKey(for: browser, bundleId: bundle.bundleIdentifier!)] {
                                 Text(shortcut)
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)

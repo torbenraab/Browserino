@@ -28,10 +28,18 @@ struct BrowserItem: Codable, Identifiable, Hashable {
     }
 }
 
-struct ChromeProfile: Codable, Identifiable {
+struct ChromeProfile: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let path: String
+
+    static func == (lhs: ChromeProfile, rhs: ChromeProfile) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
 class BrowserUtil {

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct AddRule: View {
     @State private var addPresented = false
-    
+
     var body: some View {
         HStack {
             Image(systemName: "plus")
@@ -17,14 +17,14 @@ struct AddRule: View {
                     .system(size: 14)
                 )
                 .opacity(0)
-            
+
             Text("Add a new rule by typing regex and selecting an app.")
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
+
             Spacer()
                 .frame(width: 16)
-            
+
             Button(action: {
                 addPresented.toggle()
             }) {
@@ -42,7 +42,11 @@ struct AddRule: View {
 struct RuleItem: View {
     @Binding var rule: Rule
     @State private var editPresented = false
-    
+
+    private func isChrome(_ bundle: Bundle) -> Bool {
+        return bundle.bundleIdentifier == "com.google.Chrome"
+    }
+
     var body: some View {
         let bundle = Bundle(url: rule.app)!
 
@@ -57,19 +61,20 @@ struct RuleItem: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
-            
+
             Spacer()
-            
-            
-            Text(bundle.infoDictionary!["CFBundleName"] as! String)
-                .font(
-                    .system(size: 14)
-                )
-            
-            
+
+            if isChrome(bundle) && rule.chromeProfile != nil {
+                Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(rule.chromeProfile!.name))")
+                    .font(.system(size: 14))
+            } else {
+                Text(bundle.infoDictionary!["CFBundleName"] as! String)
+                    .font(.system(size: 14))
+            }
+
             Spacer()
                 .frame(width: 8)
-            
+
             Image(nsImage: NSWorkspace.shared.icon(forFile: bundle.bundlePath))
                 .resizable()
                 .frame(width: 32, height: 32)
@@ -86,7 +91,7 @@ struct RuleItem: View {
 
 struct RulesTab: View {
     @AppStorage("rules") private var rules: [Rule] = []
-    
+
     var body: some View {
         VStack (alignment: .leading) {
             List {
@@ -98,7 +103,7 @@ struct RulesTab: View {
                     )
                 }
             }
-            
+
             Text("Type regex and choose app in which links will be opened without prompt")
                 .font(.subheadline)
                 .foregroundStyle(.primary.opacity(0.5))

@@ -11,10 +11,18 @@ struct BrowsersTab: View {
     @AppStorage("browsers") private var browsers: [BrowserItem] = []
     @AppStorage("hiddenBrowsers") private var hiddenBrowsers: [BrowserItem] = []
     @AppStorage("privateArgs") private var privateArgs: [String: String] = [:]
+    @AppStorage("shortcuts") private var shortcuts: [String: String] = [:]
     @State private var chromeProfiles: [ChromeProfile] = []
 
     private func move(from source: IndexSet, to destination: Int) {
         browsers.move(fromOffsets: source, toOffset: destination)
+    }
+
+    private func shortcutKey(for browser: BrowserItem, bundleId: String) -> String {
+        if let profile = browser.profile {
+            return "\(bundleId)_\(profile.id)"
+        }
+        return bundleId
     }
 
     private func privateArg(for key: String) -> Binding<String> {
@@ -62,7 +70,7 @@ struct BrowsersTab: View {
                             Spacer().frame(width: 32)
 
                             ShortcutButton(
-                                browserId: bundle.bundleIdentifier!
+                                browserId: shortcutKey(for: browser, bundleId: bundle.bundleIdentifier!)
                             )
 
                             Spacer().frame(width: 8)
