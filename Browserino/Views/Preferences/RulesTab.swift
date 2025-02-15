@@ -13,9 +13,7 @@ struct AddRule: View {
     var body: some View {
         HStack {
             Image(systemName: "plus")
-                .font(
-                    .system(size: 14)
-                )
+                .font(.system(size: 14))
                 .opacity(0)
 
             Text("Add a new rule by typing regex and selecting an app.")
@@ -42,42 +40,57 @@ struct AddRule: View {
 struct RuleItem: View {
     @Binding var rule: Rule
     @State private var editPresented = false
+    @State private var bundle: Bundle?
 
     private func isChrome(_ bundle: Bundle) -> Bool {
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
 
-    var body: some View {
-        let bundle = Bundle(url: rule.app)!
+    private func loadBundle() {
+        bundle = Bundle(url: rule.app)
+    }
 
+    var body: some View {
         HStack {
             Button(action: {
                 editPresented.toggle()
             }) {
-                Label(rule.regex, systemImage: "pencil")
-                    .font(
-                        .system(size: 14)
-                    )
-                    .foregroundStyle(.primary)
+                if let bundle = bundle {
+                    Label(rule.regex, systemImage: "pencil")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.primary)
+                } else {
+                    Label(rule.regex, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.red)
+                }
             }
             .buttonStyle(.plain)
 
             Spacer()
 
-            if isChrome(bundle) && rule.chromeProfile != nil {
-                Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(rule.chromeProfile!.name))")
-                    .font(.system(size: 14))
+            if let bundle = bundle {
+                if let bundleName = bundle.infoDictionary?["CFBundleName"] as? String {
+                    if isChrome(bundle) && rule.chromeProfile != nil {
+                        Text("\(bundleName) (\(rule.chromeProfile!.name))")
+                            .font(.system(size: 14))
+                    } else {
+                        Text(bundleName)
+                            .font(.system(size: 14))
+                    }
+
+                    Spacer()
+                        .frame(width: 8)
+
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: bundle.bundlePath))
+                        .resizable()
+                        .frame(width: 32, height: 32)
+                }
             } else {
-                Text(bundle.infoDictionary!["CFBundleName"] as! String)
+                Text("Invalid application: \(rule.app.path)")
                     .font(.system(size: 14))
+                    .foregroundStyle(.red)
             }
-
-            Spacer()
-                .frame(width: 8)
-
-            Image(nsImage: NSWorkspace.shared.icon(forFile: bundle.bundlePath))
-                .resizable()
-                .frame(width: 32, height: 32)
         }
         .padding(10)
         .sheet(isPresented: $editPresented) {
@@ -86,6 +99,10 @@ struct RuleItem: View {
                 isPresented: $editPresented
             )
         }
+        .onAppear(perform: loadBundle)
+        .onChange(of: rule) { _ in
+            loadBundle()
+        }
     }
 }
 
@@ -93,7 +110,7 @@ struct RulesTab: View {
     @AppStorage("rules") private var rules: [Rule] = []
 
     var body: some View {
-        VStack (alignment: .leading) {
+        VStack(alignment: .leading) {
             List {
                 AddRule()
 

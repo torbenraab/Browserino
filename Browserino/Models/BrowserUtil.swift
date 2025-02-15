@@ -45,7 +45,7 @@ struct ChromeProfile: Codable, Identifiable, Hashable {
 class BrowserUtil {
     @AppStorage("directories") private static var directories: [Directory] = []
     @AppStorage("privateArgs") private static var privateArgs: [String: String] = [:]
-    @AppStorage("enableLogging") private static var enableLogging: Bool = false
+    @AppStorage("enableLogging") private static var enableLogging: Bool = true
 
     static func log(_ message: String, items: [String] = []) {
         guard enableLogging else { return }

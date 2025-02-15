@@ -13,6 +13,7 @@ struct PromptView: View {
     @AppStorage("hiddenBrowsers") private var hiddenBrowsers: [BrowserItem] = []
     @AppStorage("apps") private var apps: [App] = []
     @AppStorage("shortcuts") private var shortcuts: [String: String] = [:]
+    @AppStorage("rules") private var rules: [Rule] = []
     @State private var opacityAnimation = 0.0
     @State private var selected = 0
     @FocusState private var focused: Bool
@@ -28,6 +29,52 @@ struct PromptView: View {
             return "\(bundleId)_\(profile.id)"
         }
         return bundleId
+    }
+
+    private func checkRules() {
+        BrowserUtil.log("\n🔍 Checking rules...")
+        BrowserUtil.log("📝 Total rules: \(rules.count)")
+
+        // Check if any URL matches any rule
+        for url in urls {
+            let urlString = url.absoluteString
+            BrowserUtil.log("\n🌐 Checking URL: \(urlString)")
+
+            for rule in rules {
+                BrowserUtil.log("⚡️ Testing rule: \(rule.regex)")
+
+                do {
+                    let regex = try Regex(rule.regex).ignoresCase()
+                    if urlString.firstMatch(of: regex) != nil {
+                        // Found a matching rule, open in the specified browser
+                        if let bundle = Bundle(url: rule.app) {
+                            BrowserUtil.log("\n✅ Rule matched:", items: [
+                                "  URL: \(urlString)",
+                                "  Regex: \(rule.regex)",
+                                "  Browser: \(bundle.bundleIdentifier ?? "unknown")",
+                                "  Profile: \(rule.chromeProfile?.name ?? "none")"
+                            ])
+
+                            BrowserUtil.openURL(
+                                urls,
+                                app: rule.app,
+                                isIncognito: false,
+                                chromeProfile: rule.chromeProfile
+                            )
+                            NSApplication.shared.hide(nil)
+                            return
+                        } else {
+                            BrowserUtil.log("❌ Bundle not found for app: \(rule.app.path)")
+                        }
+                    } else {
+                        BrowserUtil.log("❌ No match for regex: \(rule.regex)")
+                    }
+                } catch {
+                    BrowserUtil.log("❌ Invalid regex pattern: \(rule.regex), Error: \(error.localizedDescription)")
+                }
+            }
+        }
+        BrowserUtil.log("📌 No matching rules found")
     }
 
     private func filterAppsForUrls() -> [App] {
@@ -218,6 +265,8 @@ struct PromptView: View {
                     withAnimation(.interactiveSpring(duration: 0.3)) {
                         opacityAnimation = 1
                     }
+                    // Check rules when view appears
+                    checkRules()
                 }
             }
 
