@@ -179,6 +179,38 @@ struct PromptView: View {
                         return .handled
                     }
 
+                    // Check for shortcuts
+                    let pressedKey = press.characters
+                    if !pressedKey.isEmpty {
+                        // First check app shortcuts
+                        if let appIndex = appsForUrls.firstIndex(where: { app in
+                            guard let bundle = Bundle(url: app.app) else { return false }
+                            return shortcuts[bundle.bundleIdentifier!] == pressedKey
+                        }) {
+                            let app = appsForUrls[appIndex]
+                            BrowserUtil.openURL(urls, app: app.app, isIncognito: press.modifiers.contains(.shift))
+                            NSApplication.shared.hide(nil)
+                            return .handled
+                        }
+
+                        // Then check browser shortcuts
+                        if let browserIndex = visibleBrowsers.firstIndex(where: { browser in
+                            guard let bundle = Bundle(url: browser.url) else { return false }
+                            let key = shortcutKey(for: browser, bundleId: bundle.bundleIdentifier!)
+                            return shortcuts[key] == pressedKey
+                        }) {
+                            let browser = visibleBrowsers[browserIndex]
+                            BrowserUtil.openURL(
+                                urls,
+                                app: browser.url,
+                                isIncognito: press.modifiers.contains(.shift),
+                                chromeProfile: browser.profile
+                            )
+                            NSApplication.shared.hide(nil)
+                            return .handled
+                        }
+                    }
+
                     return .ignored
                 }
                 .onAppear {
