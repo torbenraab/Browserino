@@ -9,23 +9,23 @@ import SwiftUI
 
 struct GeneralTab: View {
     @State private var isDefault = false
-    @AppStorage("browsers") private var browsers: [URL] = []
-    
+    @AppStorage("browsers") private var browsers: [BrowserItem] = []
+
     func defaultBrowser() -> String? {
         guard let browserUrl = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https:")!) else {
             return nil
         }
-        
+
         return Bundle(url: browserUrl)?.bundleIdentifier
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 32) {
                 Text("Default browser")
                     .font(.headline)
                     .frame(width: 200, alignment: .trailing)
-                
+
                 VStack(alignment: .leading) {
                     Button(action: {
                         NSWorkspace.shared.setDefaultApplication(
@@ -38,36 +38,36 @@ struct GeneralTab: View {
                         Text("Make default")
                     }
                     .disabled(isDefault)
-                    
+
                     Text("Make Browserino default browser to use it")
                         .font(.callout)
                         .opacity(0.5)
                 }
             }
-            
+
             HStack(alignment: .top, spacing: 32) {
                 Text("Installed Browsers")
                     .font(.headline)
                     .frame(width: 200, alignment: .trailing)
-                
+
                 VStack(alignment: .leading) {
                     Button(action: {
                         browsers = BrowserUtil.loadBrowsers()
                     }) {
                         Text("Rescan")
                     }
-                    
+
                     Text("Rescan list of installed browsers")
                         .font(.callout)
                         .opacity(0.5)
                 }
             }
-            
+
             HStack(alignment: .top, spacing: 32) {
                 Text("System reset")
                     .font(.headline)
                     .frame(width: 200, alignment: .trailing)
-                
+
                 VStack(alignment: .leading) {
                     Button(action: {
                         let defaults = UserDefaults.standard
@@ -78,7 +78,7 @@ struct GeneralTab: View {
                     }) {
                         Text("Reset")
                     }
-                    
+
                     Text("Reset all preferences")
                         .font(.callout)
                         .opacity(0.5)

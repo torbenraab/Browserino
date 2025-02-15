@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct BrowsersTab: View {
-    @AppStorage("browsers") private var browsers: [URL] = []
-    @AppStorage("hiddenBrowsers") private var hiddenBrowsers: [URL] = []
+    @AppStorage("browsers") private var browsers: [BrowserItem] = []
+    @AppStorage("hiddenBrowsers") private var hiddenBrowsers: [BrowserItem] = []
     @AppStorage("privateArgs") private var privateArgs: [String: String] = [:]
     @State private var chromeProfiles: [ChromeProfile] = []
 
@@ -31,7 +31,7 @@ struct BrowsersTab: View {
         VStack (alignment: .leading) {
             List {
                 ForEach(Array(browsers.enumerated()), id: \.offset) { offset, browser in
-                    if let bundle = Bundle(url: browser) {
+                    if let bundle = Bundle(url: browser.url) {
                         HStack {
                             Text((offset + 1).formatted())
                                 .font(.system(size: 16))
@@ -43,8 +43,8 @@ struct BrowsersTab: View {
 
                             Spacer().frame(width: 8)
 
-                            if isChrome(bundle) {
-                                Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (with profile)")
+                            if isChrome(bundle) && browser.profile != nil {
+                                Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(browser.profile!.name))")
                                     .font(.system(size: 14))
                             } else {
                                 Text(bundle.infoDictionary!["CFBundleName"] as! String)
@@ -68,8 +68,8 @@ struct BrowsersTab: View {
                             Spacer().frame(width: 8)
 
                             Button(action: {
-                                if let idx = hiddenBrowsers.firstIndex(of: browser) {
-                                    hiddenBrowsers.remove(at: idx)
+                                if hiddenBrowsers.contains(browser) {
+                                    hiddenBrowsers.removeAll { $0.id == browser.id }
                                 } else {
                                     hiddenBrowsers.append(browser)
                                 }

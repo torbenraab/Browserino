@@ -8,6 +8,26 @@ import AppKit
 import Foundation
 import SwiftUI
 
+struct BrowserItem: Codable, Identifiable, Hashable {
+    let id: String
+    let url: URL
+    let profile: ChromeProfile?
+
+    init(url: URL, profile: ChromeProfile? = nil) {
+        self.id = profile?.id ?? url.path
+        self.url = url
+        self.profile = profile
+    }
+
+    static func == (lhs: BrowserItem, rhs: BrowserItem) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
 struct ChromeProfile: Codable, Identifiable {
     let id: String
     let name: String
@@ -17,7 +37,7 @@ struct ChromeProfile: Codable, Identifiable {
 class BrowserUtil {
     @AppStorage("directories") private static var directories: [Directory] = []
     @AppStorage("privateArgs") private static var privateArgs: [String: String] = [:]
-    @AppStorage("enableLogging") private static var enableLogging: Bool = true
+    @AppStorage("enableLogging") private static var enableLogging: Bool = false
 
     static func log(_ message: String, items: [String] = []) {
         guard enableLogging else { return }
@@ -30,7 +50,7 @@ class BrowserUtil {
         log("\n🔄 Logging is now \(enableLogging ? "enabled" : "disabled")")
     }
 
-    static func loadBrowsers() -> [URL] {
+    static func loadBrowsers() -> [BrowserItem] {
         // Convert directories to valid paths
         let validDirectories = directories.map { $0.directoryPath }
 
@@ -41,35 +61,53 @@ class BrowserUtil {
         // Fetch all applications that can open the https scheme
         let urlsForApplications = NSWorkspace.shared.urlsForApplications(toOpen: url)
 
-        // Filter the browsers to include only those in the specified browser search directories (/Applications default)
+        // Filter the browsers to include only those in the specified browser search directories
         var filteredUrlsForApplications = urlsForApplications.filter { urlsForApplication in
             validDirectories.contains { urlsForApplication.path.hasPrefix($0) }
         }
 
-        // Remove Browserino from the browser list
-        if let browserino = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "xyz.alexstrnik.Browserino") {
-            if filteredUrlsForApplications.contains(browserino) {
-                filteredUrlsForApplications.removeAll { $0 == browserino }
-            }
+        // Remove excluded applications
+        let excludedBundleIdentifiers: Set<String> = [
+            Bundle.main.bundleIdentifier ?? "xyz.alexstrnik.Browserino",
+            "com.hegenberg.BetterTouchTool",
+            "com.browserosaurus",
+            "com.parallels.desktop.appstore"
+        ]
+        filteredUrlsForApplications.removeAll { browser in
+            guard let bundle = Bundle(url: browser) else { return false }
+            return excludedBundleIdentifiers.contains(bundle.bundleIdentifier ?? "")
         }
 
-        // Always include Safari by adding it explicitly if not already present
+        var browserItems: [BrowserItem] = []
+
+        // Always include Safari if not already present
         if let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") {
             if !filteredUrlsForApplications.contains(safari) {
-                filteredUrlsForApplications.append(safari)
+                browserItems.append(BrowserItem(url: safari))
             }
         }
 
-        // Move Chrome to the end if it exists, as we'll expand it with profiles
-        if let chromeIndex = filteredUrlsForApplications.firstIndex(where: { browser in
-            guard let bundle = Bundle(url: browser) else { return false }
-            return bundle.bundleIdentifier == "com.google.Chrome"
-        }) {
-            let chrome = filteredUrlsForApplications.remove(at: chromeIndex)
-            filteredUrlsForApplications.append(chrome)
+        // Process each browser
+        for browserURL in filteredUrlsForApplications {
+            if let bundle = Bundle(url: browserURL), bundle.bundleIdentifier == "com.google.Chrome" {
+                // Handle Chrome specially
+                let profiles = getChromeProfiles()
+                if profiles.isEmpty {
+                    // If no profiles found, add Chrome as a single entry
+                    browserItems.append(BrowserItem(url: browserURL))
+                } else {
+                    // Add Chrome for each profile
+                    for profile in profiles {
+                        browserItems.append(BrowserItem(url: browserURL, profile: profile))
+                    }
+                }
+            } else {
+                // Add regular browser
+                browserItems.append(BrowserItem(url: browserURL))
+            }
         }
 
-        return filteredUrlsForApplications
+        return browserItems
     }
 
     static func getChromeProfiles() -> [ChromeProfile] {

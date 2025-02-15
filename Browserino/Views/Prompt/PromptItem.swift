@@ -19,7 +19,7 @@ struct PromptItem: View {
             HStack {
                 Text(bundle.infoDictionary!["CFBundleName"] as! String)
                     .font(
-                        .system(size: 12, weight: .bold)
+                        .system(size: 10, weight: .bold)
                     )
                 
                 Spacer()
@@ -45,7 +45,7 @@ struct PromptItem: View {
                     )
                 )
                 .resizable()
-                .frame(width: 24, height: 24)
+                .frame(width: 22, height: 22)
             }
             .padding(8)
         }
