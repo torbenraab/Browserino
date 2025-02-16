@@ -1,6 +1,7 @@
 # Browserino
 
-I added a chrome profile feature.
+- I added a chrome profile feature.
+- I added expert/import feature.
 
 ![Browserino with Chrome Porfile](images/screen.png)
 
