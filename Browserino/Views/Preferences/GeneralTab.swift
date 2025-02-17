@@ -56,7 +56,10 @@ struct GeneralTab: View {
 
                 VStack(alignment: .leading) {
                     Button(action: {
+                        BrowserUtil.log("\n🔄 Rescan triggered from GeneralTab")
                         browsers = BrowserUtil.loadBrowsers()
+                        NotificationCenter.default.post(name: NSNotification.Name("RescanBrowsers"), object: nil)
+                        BrowserUtil.log("✅ Notification posted")
                     }) {
                         Text("Rescan")
                     }

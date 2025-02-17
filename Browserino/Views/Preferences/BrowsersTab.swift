@@ -13,6 +13,7 @@ struct BrowsersTab: View {
     @AppStorage("privateArgs") private var privateArgs: [String: String] = [:]
     @AppStorage("shortcuts") private var shortcuts: [String: String] = [:]
     @State private var chromeProfiles: [ChromeProfile] = []
+    @State private var rescanTrigger = false
 
     private func move(from source: IndexSet, to destination: Int) {
         browsers.move(fromOffsets: source, toOffset: destination)
@@ -33,6 +34,49 @@ struct BrowsersTab: View {
 
     private func isChrome(_ bundle: Bundle) -> Bool {
         return bundle.bundleIdentifier == "com.google.Chrome"
+    }
+
+    private func rescanBrowsers() {
+        BrowserUtil.log("\n🔄 Rescanning browsers in BrowsersTab...")
+        let newBrowsers = BrowserUtil.loadBrowsers()
+        BrowserUtil.log("✅ Found \(newBrowsers.count) browsers")
+
+        // Keep hidden state for existing browsers
+        var updatedHiddenBrowsers: [BrowserItem] = []
+        for browser in newBrowsers {
+            if hiddenBrowsers.contains(where: { $0.id == browser.id }) {
+                updatedHiddenBrowsers.append(browser)
+            }
+        }
+
+        // Keep shortcuts for existing browsers
+        var updatedShortcuts: [String: String] = [:]
+        for browser in newBrowsers {
+            if let bundle = Bundle(url: browser.url) {
+                let key = shortcutKey(for: browser, bundleId: bundle.bundleIdentifier!)
+                if let shortcut = shortcuts[key] {
+                    updatedShortcuts[key] = shortcut
+                }
+            }
+        }
+
+        // Keep private args for existing browsers
+        var updatedPrivateArgs: [String: String] = [:]
+        for browser in newBrowsers {
+            if let bundle = Bundle(url: browser.url),
+               let privateArg = privateArgs[bundle.bundleIdentifier!] {
+                updatedPrivateArgs[bundle.bundleIdentifier!] = privateArg
+            }
+        }
+
+        // Update all settings
+        browsers = newBrowsers
+        hiddenBrowsers = updatedHiddenBrowsers
+        shortcuts = updatedShortcuts
+        privateArgs = updatedPrivateArgs
+        chromeProfiles = BrowserUtil.getChromeProfiles()
+
+        BrowserUtil.log("✅ Browser settings updated")
     }
 
     var body: some View {
@@ -93,9 +137,12 @@ struct BrowsersTab: View {
             }
             .onAppear {
                 if browsers.isEmpty {
-                    browsers = BrowserUtil.loadBrowsers()
+                    rescanBrowsers()
                 }
-                chromeProfiles = BrowserUtil.getChromeProfiles()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RescanBrowsers"))) { _ in
+                BrowserUtil.log("🔄 Received rescan notification in BrowsersTab")
+                rescanBrowsers()
             }
 
             Text("Drag and drop to reorder. Press record to assign a shortcut")
