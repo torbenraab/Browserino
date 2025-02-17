@@ -34,6 +34,18 @@ struct PromptView: View {
     private func checkRules() {
         BrowserUtil.log("\n🔍 Checking rules...")
         BrowserUtil.log("📝 Total rules: \(rules.count)")
+        BrowserUtil.log("🌐 Available browsers: \(browsers.count)")
+        browsers.forEach { browser in
+            if let bundle = Bundle(url: browser.url),
+               bundle.bundleIdentifier == "com.google.Chrome" {
+                BrowserUtil.log("  - Chrome browser: \(browser.url.path)")
+                if let profile = browser.profile {
+                    BrowserUtil.log("    Profile: id=\(profile.id), name=\(profile.name)")
+                } else {
+                    BrowserUtil.log("    No profile")
+                }
+            }
+        }
 
         // Check if any URL matches any rule
         for url in urls {
@@ -41,7 +53,11 @@ struct PromptView: View {
             BrowserUtil.log("\n🌐 Checking URL: \(urlString)")
 
             for rule in rules {
-                BrowserUtil.log("⚡️ Testing rule: \(rule.regex)")
+                BrowserUtil.log("\n⚡️ Testing rule: \(rule.regex)")
+                BrowserUtil.log("  Browser: \(rule.app.path)")
+                if let profile = rule.chromeProfile {
+                    BrowserUtil.log("  Chrome Profile: id=\(profile.id), name=\(profile.name)")
+                }
 
                 do {
                     let regex = try Regex(rule.regex).ignoresCase()
@@ -55,13 +71,59 @@ struct PromptView: View {
                                 "  Profile: \(rule.chromeProfile?.name ?? "none")"
                             ])
 
-                            BrowserUtil.openURL(
-                                urls,
-                                app: rule.app,
-                                isIncognito: false,
-                                chromeProfile: rule.chromeProfile
-                            )
-                            NSApplication.shared.hide(nil)
+                            // Check if this is Chrome and has a profile
+                            if bundle.bundleIdentifier == "com.google.Chrome" && rule.chromeProfile != nil {
+                                BrowserUtil.log("\n🔍 Looking for matching Chrome profile...")
+
+                                // Find the matching browser with the correct Chrome profile
+                                let matchingBrowser = browsers.first(where: { browser in
+                                    guard let browserBundle = Bundle(url: browser.url),
+                                          browserBundle.bundleIdentifier == "com.google.Chrome",
+                                          let browserProfile = browser.profile else {
+                                        BrowserUtil.log("❌ Skipping browser: No Chrome or no profile")
+                                        return false
+                                    }
+
+                                    BrowserUtil.log("Comparing profiles:")
+                                    BrowserUtil.log("  Rule profile: id=\(rule.chromeProfile!.id), name=\(rule.chromeProfile!.name)")
+                                    BrowserUtil.log("  Browser profile: id=\(browserProfile.id), name=\(browserProfile.name)")
+
+                                    let matches = browserProfile.id == rule.chromeProfile!.id
+                                    BrowserUtil.log(matches ? "✅ Profiles match!" : "❌ Profiles don't match")
+                                    return matches
+                                })
+
+                                if let matchingBrowser = matchingBrowser {
+                                    BrowserUtil.log("✅ Found matching Chrome profile: \(matchingBrowser.profile?.name ?? "unknown")")
+                                    BrowserUtil.openURL(
+                                        urls,
+                                        app: matchingBrowser.url,
+                                        isIncognito: false,
+                                        chromeProfile: matchingBrowser.profile
+                                    )
+                                } else {
+                                    BrowserUtil.log("❌ No matching Chrome profile found, using default browser")
+                                    BrowserUtil.openURL(
+                                        urls,
+                                        app: rule.app,
+                                        isIncognito: false,
+                                        chromeProfile: rule.chromeProfile
+                                    )
+                                }
+                            } else {
+                                // For non-Chrome browsers or Chrome without profile
+                                BrowserUtil.log("📝 Using regular browser (non-Chrome or no profile)")
+                                BrowserUtil.openURL(
+                                    urls,
+                                    app: rule.app,
+                                    isIncognito: false,
+                                    chromeProfile: rule.chromeProfile
+                                )
+                            }
+
+                            DispatchQueue.main.async {
+                                NSApplication.shared.hide(nil)
+                            }
                             return
                         } else {
                             BrowserUtil.log("❌ Bundle not found for app: \(rule.app.path)")
@@ -176,7 +238,7 @@ struct PromptView: View {
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             ScrollViewReader { scrollViewProxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -260,20 +322,13 @@ struct PromptView: View {
 
                     return .ignored
                 }
-                .onAppear {
-                    focused.toggle()
-                    withAnimation(.interactiveSpring(duration: 0.3)) {
-                        opacityAnimation = 1
-                    }
-                    // Check rules when view appears
-                    checkRules()
-                }
             }
 
             Divider()
 
             if let host = urls.first?.host() {
                 Text(host)
+                    .padding(.top, 8)
             }
         }
         .padding(12)
@@ -281,6 +336,17 @@ struct PromptView: View {
         .background(BlurredView())
         .opacity(opacityAnimation)
         .edgesIgnoringSafeArea(.all)
+        .task {
+            // Check rules immediately when view appears
+            BrowserUtil.log("\n🚀 PromptView appeared")
+            focused.toggle()
+            withAnimation(.interactiveSpring(duration: 0.3)) {
+                opacityAnimation = 1
+            }
+
+            BrowserUtil.log("\n🔄 Starting rules check...")
+            checkRules()
+        }
     }
 }
 
