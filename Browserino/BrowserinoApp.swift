@@ -86,6 +86,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        // Always ensure browsers are loaded
+        if UserDefaults.standard.object(forKey: "browsers") == nil {
+            if let encodedBrowsers = try? JSONEncoder().encode(BrowserUtil.loadBrowsers()) {
+                UserDefaults.standard.set(encodedBrowsers, forKey: "browsers")
+            }
+        }
+
         if urls.count == 1 {
             let url = urls.first!.absoluteString
 
@@ -106,14 +113,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if let bundle = Bundle(url: rule.app),
                        bundle.bundleIdentifier == "com.google.Chrome",
                        let chromeProfile = rule.chromeProfile {
-                        // Load browsers if needed
-                        var browsers = UserDefaults.standard.object(forKey: "browsers") as? Data
-                        if browsers == nil {
-                            browsers = try? JSONEncoder().encode(BrowserUtil.loadBrowsers())
-                            UserDefaults.standard.set(browsers, forKey: "browsers")
-                        }
-
-                        if let browsers = browsers,
+                        // Get the latest browsers list
+                        if let browsers = UserDefaults.standard.object(forKey: "browsers") as? Data,
                            let browserItems = try? JSONDecoder().decode([BrowserItem].self, from: browsers),
                            let matchingBrowser = browserItems.first(where: { browser in
                                guard let browserBundle = Bundle(url: browser.url),
@@ -171,6 +172,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         NSApplication.shared.activate(ignoringOtherApps: true)
         selectorWindow!.deactivateDelay()
+
+        // Ensure browsers are loaded before showing the prompt
+        if UserDefaults.standard.object(forKey: "browsers") == nil {
+            if let encodedBrowsers = try? JSONEncoder().encode(BrowserUtil.loadBrowsers()) {
+                UserDefaults.standard.set(encodedBrowsers, forKey: "browsers")
+            }
+        }
 
         selectorWindow!.contentView = NSHostingView(
             rootView: PromptView(
