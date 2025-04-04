@@ -109,6 +109,18 @@ class BrowserUtil {
                         browserItems.append(BrowserItem(url: browserURL, profile: profile))
                     }
                 }
+            } else if let bundle = Bundle(url: browserURL), bundle.bundleIdentifier == "com.microsoft.edgemac" {
+                // Handle Edge specially
+                let profiles = getEdgeProfiles()
+                if profiles.isEmpty {
+                    // If no profiles found, add Edge as a single entry
+                    browserItems.append(BrowserItem(url: browserURL))
+                } else {
+                    // Add Edge for each profile
+                    for profile in profiles {
+                        browserItems.append(BrowserItem(url: browserURL, profile: profile))
+                    }
+                }
             } else {
                 // Add regular browser
                 browserItems.append(BrowserItem(url: browserURL))
@@ -117,17 +129,25 @@ class BrowserUtil {
 
         return browserItems
     }
-
+    
     static func getChromeProfiles() -> [ChromeProfile] {
-        log("🔍 Getting Chrome profiles...")
+        return BrowserUtil.getChromiumProfiles("Google/Chrome", "Chrome")
+    }
+    
+    static func getEdgeProfiles() -> [ChromeProfile] {
+        return BrowserUtil.getChromiumProfiles("Microsoft Edge", "Edge")
+    }
+
+    static func getChromiumProfiles(_ path: String, _ name: String) -> [ChromeProfile] {
+        log("🔍 Getting \(name) profiles...")
         let fileManager = FileManager.default
         let userPath = fileManager.homeDirectoryForCurrentUser.path
-        let chromePath = "\(userPath)/Library/Application Support/Google/Chrome"
+        let chromePath = "\(userPath)/Library/Application Support/\(path)"
 
-        log("📁 Chrome path: \(chromePath)")
+        log("📁 \(name) path: \(chromePath)")
 
         guard fileManager.fileExists(atPath: chromePath) else {
-            log("❌ Chrome directory not found")
+            log("❌ \(name) directory not found")
             return []
         }
 
@@ -139,7 +159,7 @@ class BrowserUtil {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let info = json["profile"] as? [String: Any],
               let profiles = info["info_cache"] as? [String: [String: Any]] else {
-            log("❌ Failed to read or parse Chrome profile data")
+            log("❌ Failed to read or parse \(name) profile data")
             return []
         }
 
@@ -154,7 +174,7 @@ class BrowserUtil {
             )
         }.sorted { $0.name < $1.name }
 
-        log("✅ Found \(chromeProfiles.count) Chrome profiles:")
+        log("✅ Found \(chromeProfiles.count) \(name) profiles:")
         chromeProfiles.forEach { profile in
             log("", items: [
                 "  - Profile: \(profile.name)",
@@ -189,7 +209,7 @@ class BrowserUtil {
 
         let configuration = NSWorkspace.OpenConfiguration()
 
-        if bundle.bundleIdentifier == "com.google.Chrome" && chromeProfile != nil {
+        if (bundle.bundleIdentifier == "com.google.Chrome" || bundle.bundleIdentifier == "com.microsoft.edgemac") && chromeProfile != nil {
             configuration.createsNewApplicationInstance = true
             // Use --profile-directory without quotes and with the exact profile directory name
             let profileArg = "--profile-directory=\(chromeProfile!.id)"

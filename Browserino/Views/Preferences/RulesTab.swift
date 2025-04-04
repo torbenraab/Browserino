@@ -45,6 +45,10 @@ struct RuleItem: View {
     private func isChrome(_ bundle: Bundle) -> Bool {
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
+    
+    private func isEdge(_ bundle: Bundle) -> Bool {
+        return bundle.bundleIdentifier == "com.microsoft.edgemac"
+    }
 
     private func loadBundle() {
         bundle = Bundle(url: rule.app)
@@ -71,7 +75,7 @@ struct RuleItem: View {
 
             if let bundle = bundle {
                 if let bundleName = bundle.infoDictionary?["CFBundleName"] as? String {
-                    if isChrome(bundle) && rule.chromeProfile != nil {
+                    if (isChrome(bundle) || isEdge(bundle)) && rule.chromeProfile != nil {
                         Text("\(bundleName) (\(rule.chromeProfile!.name))")
                             .font(.system(size: 14))
                     } else {

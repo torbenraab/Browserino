@@ -35,6 +35,10 @@ struct BrowsersTab: View {
     private func isChrome(_ bundle: Bundle) -> Bool {
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
+    
+    private func isEdge(_ bundle: Bundle) -> Bool {
+        return bundle.bundleIdentifier == "com.microsoft.edgemac"
+    }
 
     private func rescanBrowsers() {
         BrowserUtil.log("\n🔄 Rescanning browsers in BrowsersTab...")
@@ -95,7 +99,7 @@ struct BrowsersTab: View {
 
                             Spacer().frame(width: 8)
 
-                            if isChrome(bundle) && browser.profile != nil {
+                            if (isChrome(bundle) || isEdge(bundle)) && browser.profile != nil {
                                 Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(browser.profile!.name))")
                                     .font(.system(size: 14))
                             } else {

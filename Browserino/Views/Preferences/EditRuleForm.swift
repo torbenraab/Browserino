@@ -74,6 +74,11 @@ struct RuleForm: View {
         guard let bundle = url.map({ Bundle(url: $0)! }) else { return false }
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
+    
+    private var isEdge: Bool {
+        guard let bundle = url.map({ Bundle(url: $0)! }) else { return false }
+        return bundle.bundleIdentifier == "com.microsoft.edgemac"
+    }
 
     private var compiledRegex: Regex<AnyRegexOutput>? {
         return try? Regex(regex).ignoresCase()
@@ -140,6 +145,9 @@ struct RuleForm: View {
                         if isChrome {
                             chromeProfiles = BrowserUtil.getChromeProfiles()
                         }
+                        if isEdge {
+                            chromeProfiles = BrowserUtil.getEdgeProfiles()
+                        }
                     }
                 }
 
@@ -153,6 +161,20 @@ struct RuleForm: View {
 
             if isChrome && !chromeProfiles.isEmpty {
                 LabeledContent("Chrome Profile:") {
+                    Picker("Profile", selection: $selectedProfile) {
+                        Text("Default")
+                            .tag(nil as ChromeProfile?)
+                        ForEach(chromeProfiles) { profile in
+                            Text(profile.name)
+                                .tag(profile as ChromeProfile?)
+                        }
+                    }
+                    .frame(width: 200)
+                }
+            }
+            
+            if isEdge && !chromeProfiles.isEmpty {
+                LabeledContent("Edge Profile:") {
                     Picker("Profile", selection: $selectedProfile) {
                         Text("Default")
                             .tag(nil as ChromeProfile?)
@@ -208,6 +230,9 @@ struct RuleForm: View {
             selectedProfile = rule?.chromeProfile
             if isChrome {
                 chromeProfiles = BrowserUtil.getChromeProfiles()
+            }
+            if isEdge {
+                chromeProfiles = BrowserUtil.getEdgeProfiles()
             }
         }
     }
