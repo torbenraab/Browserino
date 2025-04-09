@@ -23,6 +23,10 @@ struct PromptView: View {
     private func isChrome(_ bundle: Bundle) -> Bool {
         return bundle.bundleIdentifier == "com.google.Chrome"
     }
+    
+    private func isEdge(_ bundle: Bundle) -> Bool {
+        return bundle.bundleIdentifier == "com.microsoft.edgemac"
+    }
 
     private func shortcutKey(for browser: BrowserItem, bundleId: String) -> String {
         if let profile = browser.profile {
@@ -72,13 +76,13 @@ struct PromptView: View {
                             ])
 
                             // Check if this is Chrome and has a profile
-                            if bundle.bundleIdentifier == "com.google.Chrome" && rule.chromeProfile != nil {
+                            if (isChrome(bundle) || isEdge(bundle)) && rule.chromeProfile != nil {
                                 BrowserUtil.log("\n🔍 Looking for matching Chrome profile...")
 
                                 // Find the matching browser with the correct Chrome profile
                                 let matchingBrowser = browsers.first(where: { browser in
                                     guard let browserBundle = Bundle(url: browser.url),
-                                          browserBundle.bundleIdentifier == "com.google.Chrome",
+                                          isChrome(bundle) || isEdge(bundle),
                                           let browserProfile = browser.profile else {
                                         BrowserUtil.log("❌ Skipping browser: No Chrome or no profile")
                                         return false
@@ -204,7 +208,7 @@ struct PromptView: View {
                                 .resizable()
                                 .frame(width: 32, height: 32)
 
-                            if isChrome(bundle) && browser.profile != nil {
+                            if (isChrome(bundle) || isEdge(bundle)) && browser.profile != nil {
                                 Text("\(bundle.infoDictionary!["CFBundleName"] as! String) (\(browser.profile!.name))")
                                     .font(.system(size: 14))
                             } else {
